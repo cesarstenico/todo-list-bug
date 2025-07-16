@@ -5,7 +5,6 @@ import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 
-// MOCK do módulo bcrypt no topo, para evitar redefinição
 jest.mock('bcrypt', () => ({
     compare: jest.fn(),
 }));
@@ -38,7 +37,6 @@ describe('AuthService', () => {
         usersService = module.get<UsersService>(UsersService);
         jwtService = module.get<JwtService>(JwtService);
 
-        // Limpar mocks antes de cada teste
         jest.clearAllMocks();
     });
 
@@ -59,7 +57,6 @@ describe('AuthService', () => {
             tasks: [],
         });
 
-        // Aqui mockamos bcrypt.compare para retornar false (senha incorreta)
         (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
         await expect(

@@ -32,7 +32,6 @@ export class UsersService {
 
         this.logger.log(`User created: ${user.email}`);
 
-        // Remove a senha do objeto antes de retornar
         const { pass, ...result } = user;
         return result;
     }
