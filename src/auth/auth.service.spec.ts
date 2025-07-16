@@ -3,6 +3,12 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+
+// MOCK do módulo bcrypt no topo, para evitar redefinição
+jest.mock('bcrypt', () => ({
+    compare: jest.fn(),
+}));
 
 describe('AuthService', () => {
     let service: AuthService;
@@ -31,6 +37,9 @@ describe('AuthService', () => {
         service = module.get<AuthService>(AuthService);
         usersService = module.get<UsersService>(UsersService);
         jwtService = module.get<JwtService>(JwtService);
+
+        // Limpar mocks antes de cada teste
+        jest.clearAllMocks();
     });
 
     it('should throw UnauthorizedException if user is not found', async () => {
@@ -50,6 +59,9 @@ describe('AuthService', () => {
             tasks: [],
         });
 
+        // Aqui mockamos bcrypt.compare para retornar false (senha incorreta)
+        (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
         await expect(
             service.signIn('test@example.com', 'password'),
         ).rejects.toThrow(UnauthorizedException);
@@ -59,13 +71,14 @@ describe('AuthService', () => {
         const user = {
             id: '1',
             email: 'test@example.com',
-            pass: 'password',
+            pass: 'hashedPassword',
             fullname: 'Test User',
             tasks: [],
         };
         const token = 'mockToken';
 
         jest.spyOn(usersService, 'findOne').mockResolvedValue(user);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(true);
         jest.spyOn(jwtService, 'signAsync').mockResolvedValue(token);
 
         const result = await service.signIn('test@example.com', 'password');

@@ -4,10 +4,11 @@ import {
     Injectable,
     UnauthorizedException,
 } from '@nestjs/common';
-import { jwtConstants } from './constants';
-import { IS_PUBLIC_KEY } from './is-public.decorator';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
+import { IS_PUBLIC_KEY } from './is-public.decorator';
+import { jwtConstants } from './constants';
+import { Request } from 'express';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -22,25 +23,25 @@ export class AuthGuard implements CanActivate {
             [context.getHandler(), context.getClass()],
         );
         if (isPublic) {
-            // 💡 See this condition
             return true;
         }
 
-        const request = context.switchToHttp().getRequest();
+        const request = context.switchToHttp().getRequest<Request>();
         const token = this.extractTokenFromHeader(request);
         if (!token) {
-            throw new UnauthorizedException();
+            throw new UnauthorizedException('Token not found');
         }
+
         try {
             const payload = await this.jwtService.verifyAsync(token, {
                 secret: jwtConstants.secret,
             });
-            // 💡 We're assigning the payload to the request object here
-            // so that we can access it in our route handlers
             request['user'] = payload;
-        } catch {
-            throw new UnauthorizedException();
+        } catch (error) {
+            console.error('Token verification failed:', error);
+            throw new UnauthorizedException('Token is invalid or expired');
         }
+
         return true;
     }
 

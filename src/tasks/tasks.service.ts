@@ -1,6 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import {
+    Injectable,
+    NotFoundException,
+    ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Task } from '../entities/task.entity';
+import { CreateTaskDto } from './dto/create-task.dto';
 import { Repository } from 'typeorm';
 
 @Injectable()
@@ -10,26 +15,65 @@ export class TasksService {
         private readonly tasksRepository: Repository<Task>,
     ) {}
 
-    async listTasks() {
-        const tasks = await this.tasksRepository.find();
-
-        return tasks;
+    // Lists only tasks of the user
+    async listTasks(userId: string) {
+        return this.tasksRepository.find({
+            where: {
+                owner: { id: userId },
+            },
+        });
     }
 
-    async getTask(id: string) {
-        const task = await this.tasksRepository
-            .createQueryBuilder('task')
-            .where(`task.id = "${id}"`)
-            .getOne();
+    // Returns task and validates if it belongs to the user
+    async getTaskIfOwnedByUser(id: string, userId: string) {
+        const task = await this.tasksRepository.findOne({
+            where: { id },
+            relations: ['owner'],
+        });
+
+        if (!task) {
+            throw new NotFoundException('Task not found');
+        }
+
+        if (task.owner.id !== userId) {
+            throw new ForbiddenException('You do not have access to this task');
+        }
 
         return task;
     }
 
-    async editTask(body: any) {
-        await this.tasksRepository.update(body.id, body);
+    // Edits a task, validating if the user is the owner
+    async editTaskIfOwnedByUser(
+        taskId: string,
+        body: Partial<CreateTaskDto>,
+        userId: string,
+    ) {
+        const task = await this.tasksRepository.findOne({
+            where: { id: taskId },
+            relations: ['owner'],
+        });
 
-        const editedTask = await this.getTask(body.id);
+        if (!task) {
+            throw new NotFoundException('Task not found');
+        }
 
-        return editedTask;
+        if (task.owner.id !== userId) {
+            throw new ForbiddenException('You cannot edit this task');
+        }
+
+        // Update task properties if they are provided in the body
+        if (body.title !== undefined) task.title = body.title;
+        if (body.description !== undefined) task.description = body.description;
+        if (body.done !== undefined) task.done = body.done;
+        if (body.dueDate !== undefined) task.dueDate = body.dueDate;
+
+        const updatedTask = await this.tasksRepository.save(task);
+
+        // Remove the 'pass' field from the owner before returning
+        if (updatedTask.owner) {
+            delete updatedTask.owner.pass;
+        }
+
+        return updatedTask;
     }
 }
